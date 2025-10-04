@@ -8,30 +8,37 @@ class GameViewModel extends ChangeNotifier {
   // Setup State
   String playerName = "Player 1";
   PlayerSign playerSign = PlayerSign.X;
-  PlayerSign get aiSign => (playerSign == PlayerSign.X) ? PlayerSign.O : PlayerSign.X;
   Difficulty difficulty = Difficulty.Easy;
+  List<String> pastPlayers = [];
 
   // Gameplay State
   List<PlayerSign> board = List.filled(9, PlayerSign.none);
   GameState gameState = GameState.Playing;
   PlayerSign _currentPlayer = PlayerSign.X;
-  PlayerSign get currentPlayer => _currentPlayer;
   List<PlayerSign>? _previousBoardState; // For the undo feature
-  bool _isMediumAiTurnRandom = true;
 
-  // Scoring State
+  // Scoring State (for the current player)
   int wins = 0;
   int losses = 0;
   int draws = 0;
 
+  // --- GETTERS ---
+  PlayerSign get aiSign => (playerSign == PlayerSign.X) ? PlayerSign.O : PlayerSign.X;
+  PlayerSign get currentPlayer => _currentPlayer;
+  bool get canUndo => _previousBoardState != null;
+
+  // --- CONSTRUCTOR ---
   GameViewModel() {
-    loadScores();
+    // We only load the list of past player names when the app starts.
+    // Scores are now loaded AFTER a player is selected.
+    loadPlayers();
   }
 
-  // --- SETUP LOGIC ---
+  // --- SETUP & PLAYER MANAGEMENT ---
   void setPlayerName(String name) {
     playerName = name.trim().isEmpty ? "Player 1" : name;
-    notifyListeners();
+    // When a player is set, load their specific scores.
+    loadPlayerScores(playerName);
   }
 
   void setPlayerSign(PlayerSign sign) {
@@ -44,18 +51,52 @@ class GameViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addAndSavePlayer(String name) async {
+    final newPlayerName = name.trim();
+    if (newPlayerName.isEmpty || pastPlayers.contains(newPlayerName)) {
+      return; // Don't add empty or duplicate names
+    }
+    pastPlayers.add(newPlayerName);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('ttt_pastPlayers', pastPlayers);
+    notifyListeners();
+  }
+
+  Future<void> loadPlayers() async {
+    final prefs = await SharedPreferences.getInstance();
+    pastPlayers = prefs.getStringList('ttt_pastPlayers') ?? [];
+    notifyListeners();
+  }
+
   // --- GAME FLOW LOGIC ---
   void startGame() {
     board = List.filled(9, PlayerSign.none);
     gameState = GameState.Playing;
     _currentPlayer = PlayerSign.X;
     _isMediumAiTurnRandom = true;
-    _previousBoardState = null;
+    _previousBoardState = null; // Reset undo state on new game
 
     if (aiSign == PlayerSign.X) {
       _makeAiMove();
     }
     notifyListeners();
+  }
+
+  Future<void> quickStartGame(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedSignName = prefs.getString('${name}_sign') ?? 'X';
+    final savedDifficultyName = prefs.getString('${name}_difficulty') ?? 'Medium';
+
+    // Update the ViewModel's state
+    playerName = name;
+    playerSign = PlayerSign.values.firstWhere((e) => e.name == savedSignName, orElse: () => PlayerSign.X);
+    difficulty = Difficulty.values.firstWhere((e) => e.name == savedDifficultyName, orElse: () => Difficulty.Medium);
+
+    // Load the scores for this specific player
+    await loadPlayerScores(playerName);
+
+    // Start the game logic
+    startGame();
   }
 
   void playerMove(int index) {
@@ -68,18 +109,17 @@ class GameViewModel extends ChangeNotifier {
       Future.delayed(const Duration(milliseconds: 400), _makeAiMove);
     }
   }
-
+  
   void undoMove() {
     if (_previousBoardState != null) {
       board = List.from(_previousBoardState!);
       gameState = GameState.Playing;
-      _currentPlayer = playerSign;
-      _previousBoardState = null;
+      _currentPlayer = playerSign; // It's the player's turn again
+      _previousBoardState = null; // Can only undo one move at a time
       notifyListeners();
     }
   }
 
-  // --- PRIVATE HELPERS ---
   void _applyMove(int index, PlayerSign sign) {
     board[index] = sign;
     _currentPlayer = (sign == PlayerSign.X) ? PlayerSign.O : PlayerSign.X;
@@ -87,9 +127,11 @@ class GameViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- AI LOGIC ---
+  bool _isMediumAiTurnRandom = true;
+
   void _makeAiMove() {
     if (gameState != GameState.Playing) return;
-
     int? move;
     switch (difficulty) {
       case Difficulty.Easy:
@@ -102,13 +144,11 @@ class GameViewModel extends ChangeNotifier {
         move = _hardAiMove();
         break;
     }
-
     if (move != null) {
       _applyMove(move, aiSign);
     }
   }
 
-  // --- AI STRATEGIES (Requirement R4) ---
   int? _easyAiMove() {
     final emptySquares = _getEmptySquares();
     return emptySquares.isEmpty ? null : emptySquares[Random().nextInt(emptySquares.length)];
@@ -121,38 +161,26 @@ class GameViewModel extends ChangeNotifier {
   }
 
   int? _hardAiMove() {
-    // Implements Pseudocode 1 from the brief
-    // 1. Check for a winning move for AI
     int? winningMove = _findWinningMove(aiSign);
     if (winningMove != null) return winningMove;
-
-    // 1. Check to block player's winning move
     int? blockingMove = _findWinningMove(playerSign);
     if (blockingMove != null) return blockingMove;
-
-    // 3. Take the center if free
     if (board[4] == PlayerSign.none) return 4;
-
-    // 4. Take opposite corner
     if (board[0] == playerSign && board[8] == PlayerSign.none) return 8;
     if (board[8] == playerSign && board[0] == PlayerSign.none) return 0;
     if (board[2] == playerSign && board[6] == PlayerSign.none) return 6;
     if (board[6] == playerSign && board[2] == PlayerSign.none) return 2;
-
-    // 5. Take any free corner
     final corners = [0, 2, 6, 8]..shuffle();
     for (var corner in corners) {
       if (board[corner] == PlayerSign.none) return corner;
     }
-
-    // 6. Take any empty square
     return _easyAiMove();
   }
-  
+
   List<int> _getEmptySquares() {
     return [for (int i = 0; i < 9; i++) if (board[i] == PlayerSign.none) i];
   }
-  
+
   int? _findWinningMove(PlayerSign sign) {
     for (int i = 0; i < 9; i++) {
       if (board[i] == PlayerSign.none) {
@@ -167,7 +195,7 @@ class GameViewModel extends ChangeNotifier {
     return null;
   }
 
-  // --- WIN/DRAW LOGIC (Requirements R1, R3) ---
+  // --- WIN/DRAW LOGIC ---
   void _checkWinner() {
     if (_isWinning(PlayerSign.X)) {
       gameState = GameState.X_Wins;
@@ -193,19 +221,27 @@ class GameViewModel extends ChangeNotifier {
     return false;
   }
 
-  // --- PERSISTENCE (Requirement R6) ---
-  Future<void> loadScores() async {
+  // --- PERSISTENCE ---
+  Future<void> saveScores() async {
     final prefs = await SharedPreferences.getInstance();
-    wins = prefs.getInt('ttt_wins') ?? 0;
-    losses = prefs.getInt('ttt_losses') ?? 0;
-    draws = prefs.getInt('ttt_draws') ?? 0;
+    // Save scores against the current player's name
+    await prefs.setInt('${playerName}_wins', wins);
+    await prefs.setInt('${playerName}_losses', losses);
+    await prefs.setInt('${playerName}_draws', draws);
+  }
+  
+  Future<void> loadPlayerScores(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    // Load scores using the player-specific key. Default to 0 if none exist.
+    wins = prefs.getInt('${name}_wins') ?? 0;
+    losses = prefs.getInt('${name}_losses') ?? 0;
+    draws = prefs.getInt('${name}_draws') ?? 0;
     notifyListeners();
   }
 
-  Future<void> saveScores() async {
+  Future<void> savePlayerSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('ttt_wins', wins);
-    await prefs.setInt('ttt_losses', losses);
-    await prefs.setInt('ttt_draws', draws);
+    await prefs.setString('${playerName}_sign', playerSign.name);
+    await prefs.setString('${playerName}_difficulty', difficulty.name);
   }
 }

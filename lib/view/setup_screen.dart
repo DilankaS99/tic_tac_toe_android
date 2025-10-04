@@ -8,7 +8,7 @@ import 'package:tic_tac_toe_app/view/widgets/gradient_background.dart'; // <-- C
 class SetupScreen extends StatelessWidget {
   const SetupScreen({super.key});
 
-  @override
+   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<GameViewModel>();
     return Scaffold(
@@ -20,30 +20,57 @@ class SetupScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Welcome, ${viewModel.playerName}!', style: const TextStyle(fontSize: 28, color: Colors.white)),
+                  Text('Welcome, ${viewModel.playerName}!',
+                      style: const TextStyle(fontSize: 28, color: Colors.white)),
                   const SizedBox(height: 40),
-                  const Text('Choose Your Mark', style: TextStyle(fontSize: 22, color: Colors.white70)),
+                  const Text('Choose Your Mark',
+                      style: TextStyle(fontSize: 22, color: Colors.white70)),
                   const SizedBox(height: 10),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    _SignButton(sign: 'X', isSelected: viewModel.playerSign == PlayerSign.X, onTap: () => viewModel.setPlayerSign(PlayerSign.X)),
+                    _SignButton(
+                        sign: 'X',
+                        isSelected: viewModel.playerSign == PlayerSign.X,
+                        onTap: () => viewModel.setPlayerSign(PlayerSign.X)),
                     const SizedBox(width: 20),
-                    _SignButton(sign: 'O', isSelected: viewModel.playerSign == PlayerSign.O, onTap: () => viewModel.setPlayerSign(PlayerSign.O)),
+                    _SignButton(
+                        sign: 'O',
+                        isSelected: viewModel.playerSign == PlayerSign.O,
+                        onTap: () => viewModel.setPlayerSign(PlayerSign.O)),
                   ]),
                   const SizedBox(height: 40),
-                  const Text('Choose Difficulty', style: TextStyle(fontSize: 22, color: Colors.white70)),
+                  const Text('Choose Difficulty',
+                      style: TextStyle(fontSize: 22, color: Colors.white70)),
                   const SizedBox(height: 10),
-                  _DifficultyButton(label: 'Easy', isSelected: viewModel.difficulty == Difficulty.Easy, onTap: () => viewModel.setDifficulty(Difficulty.Easy)),
+                  _DifficultyButton(
+                      label: 'Easy',
+                      isSelected: viewModel.difficulty == Difficulty.Easy,
+                      onTap: () => viewModel.setDifficulty(Difficulty.Easy)),
                   const SizedBox(height: 10),
-                  _DifficultyButton(label: 'Medium', isSelected: viewModel.difficulty == Difficulty.Medium, onTap: () => viewModel.setDifficulty(Difficulty.Medium)),
+                  _DifficultyButton(
+                      label: 'Medium',
+                      isSelected: viewModel.difficulty == Difficulty.Medium,
+                      onTap: () => viewModel.setDifficulty(Difficulty.Medium)),
                   const SizedBox(height: 10),
-                  _DifficultyButton(label: 'Hard', isSelected: viewModel.difficulty == Difficulty.Hard, onTap: () => viewModel.setDifficulty(Difficulty.Hard)),
-                  const Spacer(),
+                  _DifficultyButton(
+                      label: 'Hard',
+                      isSelected: viewModel.difficulty == Difficulty.Hard,
+                      onTap: () => viewModel.setDifficulty(Difficulty.Hard)),
+                      
+                  // 👇 THIS IS THE FIX 👇
+                  // We replace the Spacer with a SizedBox for consistent spacing.
+                  const SizedBox(height: 50),
+
                   ElevatedButton(
                     onPressed: () {
+                      viewModel.savePlayerSettings();
                       viewModel.startGame();
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const GameScreen()));
+                      Navigator.pushReplacement(context,
+                          MaterialPageRoute(builder: (context) => const GameScreen()));
                     },
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15), textStyle: const TextStyle(fontSize: 20)),
+                    style: ElevatedButton.styleFrom(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                        textStyle: const TextStyle(fontSize: 20,fontWeight: FontWeight.bold,)),
                     child: const Text('Start Game'),
                   )
                 ],
